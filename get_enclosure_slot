@@ -39,5 +39,5 @@ then
         exit 1
 fi
 
-# Ivalid method specified.
+# Invalid method specified.
 exit 1
