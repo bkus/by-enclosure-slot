@@ -9,3 +9,5 @@ sudo chmod +x /lib/udev/get_enclosure_slot
 sudo cp 60-persistent-enclosure-slot.rules /etc/udev/rules.d/
 sudo udevadm trigger
 ```
+
+You can now find your disks indexed by their enclosure model, address and slot within each enclosure, in `/dev/disk/by-enclosure-slot/`.
