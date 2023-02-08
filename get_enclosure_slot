@@ -1,0 +1,43 @@
+#!/usr/bin/bash
+
+# Usage: get_enclosure_slot <sysfs sd*>|<sg_ses SCSI_IDENT_PORT_NAA_REG>
+
+# "sysfs" or "sg_ses".
+method=${1}
+
+if [[ "$method" = "sysfs" ]]
+then
+        drive="${2/[0-9]*/}"
+        # Globs not supported in [[ ]]
+        [ -L /sys/block/$drive/device/enclosure_device* ] || exit 1
+        slot_name=$(ls -d /sys/block/$drive/device/enclosure_device* | cut -d: -f 2)
+        enclosure_id=$(readlink /sys/block/$drive/device/enclosure_device* | sed -e 's|.*/\(.*\)/.*$|\1|')
+        # Replacing spaces with underscores since udev's $result / %c / %c{N+} can't handle spaces, despite docs.
+        enclosure_model=$(cat "/sys/class/enclosure/$enclosure_id/device/model" | tr ' ' _)
+        slot_num=$(cat "/sys/class/enclosure/$enclosure_id/$slot_name/slot")
+        # Padding slot number with zeros makes for easier command line globbing when using the links.
+        echo "enc-$enclosure_model-$enclosure_id-slot$(printf %03d $slot_num)"
+        exit 0
+elif [[ "$method" = "sg_ses" ]]
+then
+        port_naa=${2}
+        mkdir -p /var/run/get_enclosure_slot || exit 1
+        for enclosure in /sys/class/enclosure/*
+        do
+                enclosure_id=$(basename $enclosure)
+                enclosure_sg="/dev/bsg/$enclosure_id"
+                [[ -c $enclosure_sg ]] || continue
+                [[ -f $enclosure/device/model ]] || continue
+                # Replacing spaces with underscores since udev's $result / %c / %c{N+} can't handle spaces, despite docs.
+                enclosure_model=$(tr ' ' _ < $enclosure/device/model)
+                enclosure_slot=$(flock /var/run/get_enclosure_slot/$enclosure_id.lock sg_ses -q -A $port_naa -G dsn $enclosure_sg 2>/dev/null) || continue
+                # Padding slot number with zeros makes for easier command line globbing when using the links.
+                echo "enc-$enclosure_model-$enclosure_id-slot$(printf %03d $enclosure_slot)"
+                exit 0
+        done
+        # Drive not found in any enclosure.
+        exit 1
+fi
+
+# Ivalid method expcified.
+exit 1

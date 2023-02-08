@@ -1,0 +1,2 @@
+KERNEL=="sd*", ENV{DEVTYPE}=="disk", ATTRS{sas_address}=="?*", PROGRAM="/lib/udev/get_enclosure_slot sg_ses $attr{sas_address}", SYMLINK+="disk/by-enclosure-slot/%c"
+KERNEL=="sd*", ENV{DEVTYPE}=="partition", ATTRS{sas_address}=="?*", PROGRAM="/lib/udev/get_enclosure_slot sg_ses $attr{sas_address}", SYMLINK+="disk/by-enclosure-slot/%c-part%n"
