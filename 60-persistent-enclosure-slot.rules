@@ -1,2 +1,37 @@
+#some disks will show up using this meathod below
+
 KERNEL=="sd*", ENV{DEVTYPE}=="disk", ATTRS{sas_address}=="?*", PROGRAM="/lib/udev/get_enclosure_slot sg_ses $attr{sas_address}", SYMLINK+="disk/by-enclosure-slot/%c"
 KERNEL=="sd*", ENV{DEVTYPE}=="partition", ATTRS{sas_address}=="?*", PROGRAM="/lib/udev/get_enclosure_slot sg_ses $attr{sas_address}", SYMLINK+="disk/by-enclosure-slot/%c-part%n"
+
+# below added by bfields october 2023
+# this is what was needed for a supermicro server with enclosures
+# handle the wwid way
+KERNEL=="sd*", ENV{DEVTYPE}=="disk", ATTRS{wwid}=="?*", PROGRAM="/lib/udev/get_enclosure_slot sg_ses $attr{wwid}", SYMLINK+="disk/by-enclosure-slot/%c"
+KERNEL=="sd*", ENV{DEVTYPE}=="partition", ATTRS{wwid}=="?*", PROGRAM="/lib/udev/get_enclosure_slot sg_ses $attr{wwid}", SYMLINK+="disk/by-enclosure-slot/%c-part%n"
+
+# below is needed for other disks to show up, since ZFS will need them in the same directory to import them.
+# PCI NVEM ports are identified by colors 
+# PCI NVME port 0 is Blue
+KERNEL=="nvme*", ENV{DEVTYPE}=="disk", KERNELS=="0000:00:02.0", SYMLINK+="disk/by-enclosure-slot/nvme-blue"
+KERNEL=="nvme*", ENV{DEVTYPE}=="partition", KERNELS=="0000:00:02.0", SYMLINK+="disk/by-enclosure-slot/nvme-blue-part%n"
+# PCI NVME port 1 is Red
+KERNEL=="nvme*", ENV{DEVTYPE}=="disk", KERNELS=="0000:00:02.1", SYMLINK+="disk/by-enclosure-slot/nvme-red"
+KERNEL=="nvme*", ENV{DEVTYPE}=="partition", KERNELS=="0000:00:02.1", SYMLINK+="disk/by-enclosure-slot/nvme-red-part%n"
+# PCI NVME port 2 is Orange
+KERNEL=="nvme*", ENV{DEVTYPE}=="disk", KERNELS=="0000:00:02.2", SYMLINK+="disk/by-enclosure-slot/nvme-orange"
+KERNEL=="nvme*", ENV{DEVTYPE}=="partition", KERNELS=="0000:00:02.2", SYMLINK+="disk/by-enclosure-slot/nvme-orange-part%n"
+# PCI NVME port 3 is Green
+KERNEL=="nvme*", ENV{DEVTYPE}=="disk", KERNELS=="0000:00:02.3", SYMLINK+="disk/by-enclosure-slot/nvme-green"
+KERNEL=="nvme*", ENV{DEVTYPE}=="partition", KERNELS=="0000:00:02.3", SYMLINK+="disk/by-enclosure-slot/nvme-green-part%n"
+
+# SATA ports in here too, as they are the boot devices and ZFS mirrored
+# Note that if you want boot disks to work, you need to delete the zfs cache file and rebuild your initramfs and reboot
+# Might have to do it a couple times to get it to work. 
+
+#ATA3 is port 0 lower slot
+#ATA4 is port 1 upper slot
+
+KERNEL=="sd*", ENV{DEVTYPE}=="disk", KERNELS=="ata4", SYMLINK+="disk/by-enclosure-slot/sata-top"
+KERNEL=="sd*", ENV{DEVTYPE}=="partition", KERNELS=="ata4", SYMLINK+="disk/by-enclosure-slot/sata-top-part%n"
+KERNEL=="sd*", ENV{DEVTYPE}=="disk", KERNELS=="ata3", SYMLINK+="disk/by-enclosure-slot/sata-bottom"
+KERNEL=="sd*", ENV{DEVTYPE}=="partition", KERNELS=="ata3", SYMLINK+="disk/by-enclosure-slot/sata-bottom-part%n"

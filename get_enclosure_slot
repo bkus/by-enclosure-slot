@@ -2,6 +2,14 @@
 
 # Usage: get_enclosure_slot <sysfs sd*>|<sg_ses SCSI_IDENT_PORT_NAA_REG>
 
+# define pretty enclosure names
+# Way this works is you will get a name for the enclosure, then just add it here with the name you want it replaced it. 
+# It's a hack, but so is this whole thing.
+#
+# coded by Bart Kus, hacked up by Bryan Fields, October 2023
+
+declare -A Names=( ['enc-SAS3x28_________-2:0:10:0']=rear ["enc-SAS3x28_________-2:0:9:0"]=front ["enc-SAS3x28_________-2:0:12:0"]=front ['enc-SAS3x28_________-2:0:25:0']=rear)
+
 # "sysfs" or "sg_ses".
 method=${1}
 
@@ -19,22 +27,42 @@ then
         echo "enc-$enclosure_model-$enclosure_id-slot$(printf %03d $slot_num)"
         exit 0
 elif [[ "$method" = "sg_ses" ]]
+	# probally better way to do this than looping through the last 4 WWNs of a device.
+	# Maybe we can figure out the base and loop 4 up from it some how?
+	# there's a slight risk that you could mis id a drive here if you had two disks in WWN sequence.  
+	# I've not seen this a problem in practice.  
 then
         port_naa=${2}
-        mkdir -p /var/run/get_enclosure_slot || exit 1
-        for enclosure in /sys/class/enclosure/*
-        do
-                enclosure_id=$(basename $enclosure)
-                enclosure_sg="/dev/bsg/$enclosure_id"
-                [[ -c $enclosure_sg ]] || continue
-                [[ -f $enclosure/device/model ]] || continue
-                # Replacing spaces with underscores since udev's $result / %c / %c{N+} can't handle spaces, despite docs.
-                enclosure_model=$(tr ' ' _ < $enclosure/device/model)
-                enclosure_slot=$(flock /var/run/get_enclosure_slot/$enclosure_id.lock sg_ses -q -A $port_naa -G dsn $enclosure_sg 2>/dev/null) || continue
-                # Padding slot number with zeros makes for easier command line globbing when using the links.
-                echo "enc-$enclosure_model-$enclosure_id-slot$(printf %03d $enclosure_slot)"
-                exit 0
-        done
+	#handle if in the format of naa.5000c500aecebc1f
+	if [[ "$port_naa" =~ ^naa ]] 
+	then port_naa=16#$(echo "$port_naa" | cut -f2 -d .)
+	fi	
+	mkdir -p /var/run/get_enclosure_slot || exit 1
+	# loop through all the 4 possibilites
+	counter=4
+	while [ $counter -ge 0 ]
+	do
+  	port=$(printf 0x%X `echo $(( $port_naa - $counter ))`)
+		for enclosure in /sys/class/enclosure/*
+        	do
+                	enclosure_id=$(basename $enclosure)
+                	enclosure_sg="/dev/bsg/$enclosure_id"
+                	[[ -c $enclosure_sg ]] || continue
+                	[[ -f $enclosure/device/model ]] || continue
+                	# Replacing spaces with underscores since udev's $result / %c / %c{N+} can't handle spaces, despite docs.
+                	enclosure_model=$(tr ' ' _ < $enclosure/device/model)
+                	enclosure_slot=$(flock /var/run/get_enclosure_slot/$enclosure_id.lock sg_ses -q -A $port -G dsn $enclosure_sg 2>/dev/null) || continue
+                	# Padding slot number with zeros makes for easier command line globbing when using the links. 
+			# now do a loop to find if this enclosure is defined
+
+			enclosure=(enc-$enclosure_model-$enclosure_id)
+			if [ ${Names[$enclosure]+_} ]; then enclosure=${Names[$enclosure]} ; fi
+                	
+			echo "$enclosure-slot$(printf %03d $enclosure_slot)"
+			exit 0
+           	done
+	((counter--))
+	done
         # Drive not found in any enclosure.
         exit 1
 fi
